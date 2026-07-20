@@ -55,9 +55,21 @@ production deployment (design §8, Path C) will use, from this same code.
 
 ## Data
 
-The repo contains **no imaging data**, and must not. Demo data is public only
-(RVENet-MedSAM2, CAMUS). Real patient imaging stays out of this repository and off any machine
-without the institutional data-processing agreement in place — see design §3.
+The repo contains **no imaging data**, and must not — `data/` and `apps/legus/model/` are
+gitignored. Real patient imaging stays out of this repository and off any machine without the
+institutional data-processing agreement in place — see design §3.
+
+Demo data: `scripts/fetch_data.py` fetches public **CAMUS** echocardiography images + masks
+(`zeahub/camus-sample` on Hugging Face, CC BY-NC-SA 4.0) and converts them into the MONAI Label
+datastore layout under `data/legus/`. `wanglab/RVENet-MedSAM2` was the originally-planned source
+but turned out, on inspection, to contain only MedSAM2-generated mask PNGs with no source
+images — the raw videos require an individual, non-redistributable Research Use Agreement with
+RVENet — so it cannot populate an image+mask datastore; see the docstring in `fetch_data.py` for
+the full story.
+
+```bash
+uv run scripts/fetch_data.py --limit 8   # small demo set; idempotent, re-running won't re-download
+```
 
 ## Licenses
 

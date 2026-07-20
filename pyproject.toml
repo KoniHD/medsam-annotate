@@ -14,6 +14,8 @@ dependencies = [
     "SimpleITK>=2.4.0",
     "pandas>=2.2.3",
     "huggingface-hub>=0.27.0",
+    "h5py>=3.12.0", # reads the zea/CAMUS HDF5 sequences fetched by scripts/fetch_data.py
+    "monailabel",   # from the pinned submodule — see [tool.uv.sources] below
 ]
 
 [dependency-groups]
@@ -24,9 +26,18 @@ dev = [
 ]
 
 [tool.uv]
-# external/MONAILabel and external/MedSAM2 declare `torch` in setup_requires, which breaks
-# PEP-517 build isolation. bootstrap.sh installs them with --no-build-isolation.
 package = false
+
+# MONAI Label is a real dependency, declared here so `uv sync` installs it rather than PRUNING it.
+# Before this was declared, a bare `uv sync` removed monailabel/monai/sam2 from the venv and left
+# apps/legus unimportable — which happened for real during review.
+#
+# It must come from the pinned submodule, not PyPI: the newest PyPI release (0.8.5, Nov 2024)
+# predates the SAM2 integration this whole adapter is built on.
+no-build-isolation-package = ["monailabel"]
+
+[tool.uv.sources]
+monailabel = { path = "external/MONAILabel", editable = true }
 
 [tool.ruff]
 line-length = 110
@@ -50,3 +61,13 @@ include = ["apps", "scripts", "tests"]
 exclude = ["external", ".venv", "**/__pycache__"]
 typeCheckingMode = "basic"
 reportMissingImports = "error"
+
+# MONAI Label loads an app by putting its directory on sys.path, so inside apps/legus the
+# package root is `lib`, not `apps.legus.lib`. Mirror that for the language server, and add
+# the repo root so tests can import via the full path.
+extraPaths = [".", "apps/legus"]
+
+# monai and monailabel are heavily dynamic (lazy re-exports, runtime class loading), so their
+# stubs disagree with working code. Don't let third-party typing noise mask our own errors.
+reportPrivateImportUsage = "none"
+reportMissingTypeStubs = "none"
