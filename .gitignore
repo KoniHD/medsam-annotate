@@ -1,0 +1,20 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Model checkpoints — fetched by scripts/bootstrap.sh, never committed
+apps/legus/model/
+checkpoints/
+
+# Datasets — fetched by scripts/fetch_data.py. Never commit imaging data.
+data/
+
+# MONAI Label runtime state
+*.log
+.monailabel/
+
+# macOS
+.DS_Store

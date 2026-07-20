@@ -1,0 +1,52 @@
+[project]
+name = "medsam-annotate"
+version = "0.1.0"
+description = "AI-assisted pediatric lower-leg ultrasound annotation: MedSAM2 served through MONAI Label to a 3D Slicer client"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+
+# Runtime deps live in the pinned submodules (external/MONAILabel brings MONAI, SAM2,
+# FastAPI and friends). Only what MONAI Label does *not* already pull in belongs here.
+dependencies = [
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
+    "pyradiomics-bhklab>=3.1.4", # maintained fork; upstream pyradiomics has no py3.12 wheels
+    "SimpleITK>=2.4.0",
+    "pandas>=2.2.3",
+    "huggingface-hub>=0.27.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "httpx>=0.27.0",
+    "ruff>=0.8.0",
+]
+
+[tool.uv]
+# external/MONAILabel and external/MedSAM2 declare `torch` in setup_requires, which breaks
+# PEP-517 build isolation. bootstrap.sh installs them with --no-build-isolation.
+package = false
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["external"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# --- Python LSP -------------------------------------------------------------------
+# Point the language server at the uv-managed venv, and keep the vendored submodules
+# out of analysis (they are third-party code we never edit).
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+include = ["apps", "scripts", "tests"]
+exclude = ["external", ".venv", "**/__pycache__"]
+typeCheckingMode = "basic"
+reportMissingImports = "error"

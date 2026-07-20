@@ -1,0 +1,10 @@
+[submodule "external/MONAILabel"]
+	path = external/MONAILabel
+	url = https://github.com/Project-MONAI/MONAILabel.git
+	pushurl = DISABLE
+	update = none
+[submodule "external/MedSAM2"]
+	path = external/MedSAM2
+	url = https://github.com/bowang-lab/MedSAM2.git
+	pushurl = DISABLE
+	update = none
