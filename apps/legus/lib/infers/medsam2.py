@@ -396,33 +396,26 @@ class MedSAM2InferTask(Sam2InferTask):
         mask, _result_json = self(request)
         return np.asarray(mask)
 
-    @staticmethod
-    def _has_slice_hint(request: dict[str, Any]) -> bool:
-        """True if the request already pins a slice, via an explicit index, a 6-element roi, or a
-        point carrying a z component."""
-        slice_idx = request.get("slice")
-        if slice_idx is not None and slice_idx >= 0:
-            return True
-        if len(request.get("roi") or []) == 6:
-            return True
-        return any(len(p) > 2 for p in (request.get("foreground") or []) + (request.get("background") or []))
-
     def _ensure_slice_hint(self, request: dict[str, Any]) -> dict[str, Any]:
-        """Pin slice 0 for a 2D task on a volume when nothing else pins a slice.
+        """For a 2D task on a volume, pin a valid slice index -- defaulting to 0 when none is
+        given, and *clamping* one that is out of range.
 
-        Applied in `__call__`, not in `segment()`, because the REST endpoint -- the path the
-        Slicer client actually uses -- never goes through `segment()`. With no z hint, upstream
-        `run2d` settles on `slice_idx = -1` and takes its whole-image branch, which (unlike the
-        slice branch) never does `.convert("RGB")`. A single-channel frame then reaches
-        torchvision's Normalize and dies with "output with shape [1,1024,1024] doesn't match the
-        broadcast shape [3,1024,1024]" -- an HTTP 500 in the annotator's face, which is exactly
-        the failure mode design.md Sec 1/3 says must not happen. Reproduced over REST against the
-        real CAMUS demo data.
+        Two distinct failures this prevents, both HTTP 500s in the annotator's face (design.md
+        Sec 1/3), both reproduced over REST on the real CAMUS demo data:
 
-        Only applied when the image really has a z axis, so a genuine 2D file keeps upstream's
-        whole-image behaviour. The header peek reads dimensions only, no pixels.
+          * No slice hint -> upstream `run2d` settles on `slice_idx = -1` and takes its whole-image
+            branch, which (unlike the slice branch) never does `.convert("RGB")`; a single-channel
+            frame then dies in torchvision Normalize ("[1,1024,1024] vs [3,1024,1024]").
+          * Out-of-range slice -> the 3D Slicer plugin always sends `slice = <slice-view offset>`
+            for a 2D model, and on our singleton-z (D=1) frames that offset is frequently >= 1, so
+            `image_tensor[:, :, slice_idx]` raises `IndexError: index N is out of bounds for
+            dimension 2 with size 1`. Clamping to the volume's real z-extent fixes it for our D=1
+            data and stays correct for a genuine multi-slice volume served through a 2D task.
+
+        Only touches a real z-axis image, so a genuine 2D file keeps upstream's behaviour. The
+        header peek reads dimensions only, no pixels.
         """
-        if self.dimension != 2 or self._has_slice_hint(request):
+        if self.dimension != 2:
             return request
         image = request.get("image")
         if not isinstance(image, str) or not os.path.isfile(image):
@@ -433,11 +426,24 @@ class MedSAM2InferTask(Sam2InferTask):
             reader.ReadImageInformation()
             if reader.GetDimension() < 3:
                 return request
+            n_slices = int(reader.GetSize()[2])
         except Exception:  # unreadable header: leave upstream's behaviour untouched
             return request
-        logger.debug("MedSAM2: no slice hint in request; defaulting to slice 0 for this 2D task")
-        request = dict(request)
-        request["slice"] = 0
+
+        requested = request.get("slice")
+        if requested is None or requested < 0:
+            new_slice = 0
+        else:
+            new_slice = min(int(requested), n_slices - 1)  # clamp into [0, n_slices-1]
+
+        if new_slice != requested:
+            if requested is not None and requested >= n_slices:
+                logger.info(
+                    f"MedSAM2: requested slice {requested} is out of range for a {n_slices}-slice "
+                    f"volume; clamping to {new_slice}."
+                )
+            request = dict(request)
+            request["slice"] = new_slice
         return request
 
 

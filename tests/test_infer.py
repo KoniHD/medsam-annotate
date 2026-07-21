@@ -130,6 +130,19 @@ def test_devices_agree(task, frame):
 
 
 @needs_checkpoint
+def test_out_of_range_slice_is_clamped(task, frame):
+    """Regression: the 3D Slicer plugin sends slice = <slice-view offset> for a 2D model, which on
+    our singleton-z (D=1) frames is frequently >= 1, making run2d index a non-existent slice and
+    500. The adapter must clamp the slice into range so any offset the plugin sends still works."""
+    box = [40, 55, 90, 115]
+    ref = np.asarray(task.segment(str(frame), {"box": box, "slice": 0})).astype(bool)
+    for bad_slice in (1, 3, 99):
+        out = np.asarray(task.segment(str(frame), {"box": box, "slice": bad_slice})).astype(bool)
+        assert out.sum() > 0, f"slice={bad_slice} produced an empty mask"
+        assert np.array_equal(out, ref), f"slice={bad_slice} should clamp to slice 0 and match it"
+
+
+@needs_checkpoint
 def test_box_prompt_without_slice_hint_does_not_crash(task, frame):
     """Regression: with no z hint, upstream run2d takes a branch that never converts grayscale to
     RGB and dies in torchvision Normalize ("[1,1024,1024] vs [3,1024,1024]"). Reproduced on the
