@@ -439,3 +439,73 @@ class MedSAM2InferTask(Sam2InferTask):
         request = dict(request)
         request["slice"] = 0
         return request
+
+
+# --- automatic (unprompted) pre-labelling variant -------------------------------------------
+
+ENV_AUTO_BOX = "LEGUS_AUTO_BOX_FRACTION"
+DEFAULT_AUTO_BOX_FRACTION = 1.0
+
+
+class MedSAM2AutoInferTask(MedSAM2InferTask):
+    """MedSAM2 as an *automatic* pre-labeller: no human prompt, one mask per image.
+
+    Why this exists, and its honest limits (design.md Sec 6 "unprompted pre-labels", Sec 10):
+    SAM2/MedSAM2 is a *promptable* model -- it segments whatever a box/points enclose and cannot
+    segment an image with no prompt at all. "Automatic" here therefore means *supplying a derived
+    prompt* (a default bounding box) rather than a human one, which is exactly how MedSAM2's own
+    auto pipelines work (they simulate a box on a slice). The output quality is only as good as
+    (a) that default-box heuristic and (b) how well the weights already know the target structure,
+    so on out-of-distribution leg ultrasound the day-one pre-label is rough and improves as the
+    fine-tune loop (lib/trainers/medsam2.py) teaches the model the structure -- do not oversell
+    day-one auto quality (design.md Sec 10 item 2).
+
+    This is a thin wrapper: it injects a whole-image (or `LEGUS_AUTO_BOX_FRACTION`-sized, centred)
+    ROI when the request carries no prompt of its own, then defers entirely to the interactive
+    path. Registered as `InferType.SEGMENTATION` so the client's Auto-Segmentation affordance
+    (Slicer's "Auto Segmentation" section / "Run") targets it, complementing the interactive
+    `medsam2_2d`/`medsam2_3d` tasks rather than replacing them.
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("type", InferType.SEGMENTATION)
+        super().__init__(*args, **kwargs)
+        frac = os.environ.get(ENV_AUTO_BOX)
+        try:
+            self.auto_box_fraction = float(frac) if frac else DEFAULT_AUTO_BOX_FRACTION
+        except ValueError:
+            logger.warning(f"{ENV_AUTO_BOX}={frac!r} is not a number; using {DEFAULT_AUTO_BOX_FRACTION}")
+            self.auto_box_fraction = DEFAULT_AUTO_BOX_FRACTION
+        self.auto_box_fraction = min(max(self.auto_box_fraction, 0.05), 1.0)
+
+    def __call__(self, request, debug=False):
+        request = self._ensure_default_box(request)
+        return super().__call__(request, debug=debug)
+
+    def _ensure_default_box(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Inject a centred default ROI covering `auto_box_fraction` of the frame, when the caller
+        supplied no prompt (no roi and no points). Header peek reads dimensions only, no pixels."""
+        has_prompt = (request.get("roi") or request.get("foreground") or request.get("background"))
+        if has_prompt:
+            return request
+        image = request.get("image")
+        if not isinstance(image, str) or not os.path.isfile(image):
+            return request
+        try:
+            reader = sitk.ImageFileReader()
+            reader.SetFileName(image)
+            reader.ReadImageInformation()
+            size = reader.GetSize()  # (W, H[, D]) in sitk index order
+        except Exception:
+            return request
+        width, height = int(size[0]), int(size[1])
+        margin = (1.0 - self.auto_box_fraction) / 2.0
+        r0, r1 = round(height * margin), round(height * (1.0 - margin))
+        c0, c1 = round(width * margin), round(width * (1.0 - margin))
+        request = dict(request)
+        request["roi"] = [r0, c0, r1, c1]  # run2d expects [row0, col0, row1, col1]
+        logger.info(
+            f"MedSAM2 auto: no prompt supplied; using default box {request['roi']} "
+            f"({self.auto_box_fraction:.0%} of frame). Pre-label quality improves with fine-tuning."
+        )
+        return request

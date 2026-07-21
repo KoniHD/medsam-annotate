@@ -30,6 +30,7 @@ sys.path.insert(0, str(REPO_ROOT / "apps" / "legus"))
 from lib.infers.medsam2 import (  # noqa: E402
     DEFAULT_CHECKPOINT_FILENAME,
     ENV_DEVICE,
+    MedSAM2AutoInferTask,
     MedSAM2InferTask,
     available_devices,
 )
@@ -152,3 +153,30 @@ def test_mps_fallback_env_is_set():
     """design.md Sec 8 Path A calls for PYTORCH_ENABLE_MPS_FALLBACK=1; importing the adapter must
     establish it so unimplemented MPS ops fall back instead of raising."""
     assert os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1"
+
+
+# --- automatic pre-labelling variant ----------------------------------------------------------
+
+
+def test_auto_task_is_segmentation_type():
+    """The auto variant must register as SEGMENTATION so the client's Auto-Segmentation affordance
+    (and auto-run-on-next-sample) targets it -- registering it as DEEPGROW would leave the plugin
+    with no valid segmentation model and 404 on next-sample auto-run."""
+    task = MedSAM2AutoInferTask(model_dir=str(MODEL_DIR), dimension=2)
+    assert task.type == InferType.SEGMENTATION
+    assert task.labels, "auto task must advertise labels so segments are created and auto-run resolves to it"
+
+
+@needs_checkpoint
+def test_auto_segmentation_without_any_prompt(task_auto, frame):
+    """The whole point of the auto variant: an unprompted request (what onClickSegmentation sends)
+    still yields a non-empty, non-degenerate mask via the injected default box."""
+    mask = np.asarray(task_auto.segment(str(frame), {})).astype(bool)
+    frac = mask.mean()
+    assert mask.sum() > 0, "auto segmentation produced an empty mask"
+    assert frac < 0.95, "auto segmentation returned essentially the whole frame (degenerate)"
+
+
+@pytest.fixture(scope="module")
+def task_auto():
+    return MedSAM2AutoInferTask(model_dir=str(MODEL_DIR), dimension=2)

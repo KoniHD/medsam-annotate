@@ -24,21 +24,24 @@ proceed until it prints `ALL CHECKS PASSED` and exits 0. Then:
 2. Server URL `http://localhost:8000` → **Fetch Info** (the ⟳ button). The named segments
    (`muscle`, `subcutaneous_fat`, `bone_surface`) now load automatically with each study.
 3. **Active Learning → Next Sample** → an unlabeled image loads.
-4. Open the **SmartEdit** section (this is where MedSAM2 lives — there is **no** "Auto
-   Segmentation" section, and that's correct: MedSAM2 is an *interactive* model, not an
-   auto-segmenter). In SmartEdit:
+4. **Lead with interactive** (day-one quality is good). Open the **SmartEdit** section:
    - **Model** → `medsam2_2d`.
    - **Label** → pick the structure you're about to outline (e.g. `muscle`).
    - Click the **ROI/BBOX Prompt** place button, then drag a box around that structure in a
      slice view. (Optionally add foreground/background points with their place buttons.)
-   - Click **Update** — *this is the run button* — a mask appears in ~1s.
-5. Correct it with the **Segment Editor** (Paint/Erase) if needed → **Active Learning →
-   Submit Label**.
-6. Show the measurement CSV: `README.md` §3 has the exact command.
+   - Click **Update** — *this is the interactive run button* — a mask appears in ~1s.
+5. **Then show automatic pre-labelling** (`medsam2`, in the **Auto Segmentation** section →
+   **Run**; it also auto-runs when you load a Next Sample). Frame it honestly: this needs no
+   clicks, but day-one on leg data it's *rough* and sharpens as her corrections fine-tune the
+   model — the value is the trajectory, not the first mask (design §10).
+6. Correct with the **Segment Editor** (Paint/Erase) if needed → **Active Learning → Submit Label**.
+7. Show the measurement CSV: `README.md` §3 has the exact command.
 
-> **Why no "Run"/"Auto Segmentation":** the plugin only shows an Auto-Segmentation section for
-> whole-volume automatic models; we deliberately don't register one (design §5 — MedSAM2 replaces
-> that role). The interactive run button is **"Update"** inside **SmartEdit**.
+> **Two modes, on purpose.** MedSAM2 is *promptable*: interactive (your box → mask, in SmartEdit,
+> run button labelled **Update**) is its native, day-one-good mode. Automatic (`medsam2`, Auto
+> Segmentation section) supplies a synthetic default box so it can pre-label with no prompt — the
+> design §6 loop — but it's rough until fine-tuned. Lead with interactive; use auto to tell the
+> "it gets better" story.
 
 If anything breaks live, `README.md` §4 is the fallback table. The reliable fallback for a flaky
 prompt is `LEGUS_DEVICE=cpu ./scripts/start_server.sh` — the guaranteed-correct path.

@@ -72,11 +72,16 @@ uv run python -m pytest tests/ -q           # fast suite; add -m slow for the re
   (`_ensure_slice_hint`), because the REST path Slicer uses never calls `segment()`.
 - `uv sync` will **prune** monailabel/monai/sam2 unless monailabel is a declared dependency sourced
   from the submodule — it is, via `[tool.uv.sources]` in `pyproject.toml`. Don't undo that.
-- The MONAI Label Slicer plugin gates its box tool on `dimension`+`DEEPGROW` type, not the model
-  name, so `medsam2_2d` gets the ROI widget with no renaming. Interactive models appear under
-  **SmartEdit**, never Auto Segmentation (that section shows only for `segmentation`/`detection`
-  models, which we don't register). The interactive **run button is labeled "Update"**, and the
-  box tool is "ROI/BBOX Prompt".
+- Two serving modes share the same weights: `medsam2_2d`/`medsam2_3d` (`DEEPGROW`, interactive,
+  under the plugin's **SmartEdit** section — run button labeled **"Update"**, box tool "ROI/BBOX
+  Prompt") and `medsam2` (`SEGMENTATION`, automatic pre-label under **Auto Segmentation** → Run).
+  SAM2 is promptable — it can't segment with no prompt — so the auto task (`MedSAM2AutoInferTask`)
+  injects a synthetic default box (`LEGUS_AUTO_BOX_FRACTION`, default full-frame). Auto quality is
+  rough until fine-tuned; lead demos with interactive (design §10).
+- **The auto task must be registered FIRST** in `init_infers` and advertise the same labels. The
+  plugin's "auto-run on Next Sample" (defaults ON, and its checkbox is dev-mode-only) resolves the
+  shared labels to the first matching model; if that's a `deepgrow` model it sets an empty
+  segmentation selector and POSTs `/infer/` → **404**. A segmentation-type model first prevents it.
 - The task advertises `labels` (default `muscle,subcutaneous_fat,bone_surface`, override with
   `LEGUS_LABELS`). This is not optional polish: with `labels=None` the plugin auto-creates no
   segments and refuses to run an interactive model with no label selected. SAM2 is class-agnostic,

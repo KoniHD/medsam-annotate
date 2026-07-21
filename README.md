@@ -107,22 +107,33 @@ server mid-demo.
    `medsam2_2d` / `medsam2_3d` and the advertised labels (`muscle`, `subcutaneous_fat`,
    `bone_surface`) load; those labels auto-create named segments per study.
 4. **Active Learning → Next Sample** → loads an unlabeled image into the 2D slice views.
-5. Open the **SmartEdit** section — this is where interactive models run. **There is no "Auto
-   Segmentation" section, and that is correct:** the plugin only shows Auto Segmentation for
-   whole-volume automatic models, and we deliberately register none (design §5 — MedSAM2 replaces
-   that role). In SmartEdit:
+   Two serving modes are available (see "Interactive vs automatic" below):
+
+   **Interactive (lead with this — day-one quality is good):** open the **SmartEdit** section.
    - **Model** → `medsam2_2d`.
    - **Label** → the structure you're about to outline (e.g. `muscle`). The mask lands in that
      segment, which becomes its row in the measurement CSV.
    - Click the **ROI/BBOX Prompt** place button, then drag a box around the structure in a slice
      view. Optionally add positive/negative points with the foreground/background place buttons.
-6. Click **Update** — **this is the interactive run button** (there is no button literally called
-   "Run" for interactive models). A mask appears as a colored overlay in ~1s (pre-warmed) — longer
-   the first time if pre-warm was skipped.
-7. Use Slicer's **Segment Editor** (Paint/Erase/Scissors) to correct the mask if needed.
-8. **Active Learning → Submit Label** — writes the corrected mask into the datastore under
+   - Click **Update** — **this is the interactive run button** (there is no button literally
+     called "Run" for interactive models). A mask appears in ~1s (pre-warmed).
+
+   **Automatic pre-label:** open the **Auto Segmentation** section, model `medsam2`, click **Run**
+   for a no-prompt pre-label (the model also auto-runs on Next Sample). Pitch this honestly — see
+   the box below.
+6. Use Slicer's **Segment Editor** (Paint/Erase/Scissors) to correct the mask if needed.
+7. **Active Learning → Submit Label** — writes the corrected mask into the datastore under
    `labels/final/`.
-9. Repeat 4–8 on 2–3 images to show the prompt → correct → submit loop.
+8. Repeat 4–7 on 2–3 images to show the prompt → correct → submit loop.
+
+> **Interactive vs automatic.** MedSAM2 is a *promptable* model — natively it segments what a
+> box/points enclose (interactive). It also runs **automatically** (`medsam2`, the Auto
+> Segmentation section) by supplying a synthetic default box instead of a human one — this is the
+> "unprompted pre-labels" of design §6. But a synthetic box on out-of-distribution leg ultrasound
+> is **rough day one** and only sharpens as the fine-tune loop (§6) teaches the structure, so
+> **lead the demo with the interactive mode** (where the human's box gives an immediately good
+> mask) and present auto pre-labels as "this is the trajectory, it improves with each round" —
+> design §10 item 2, do not oversell day-one auto quality.
 
 **Talking points while doing this (design §10):**
 - *The annotation feel* — a box prompt returns a mask in ~1 second; contrast with drawing it by
