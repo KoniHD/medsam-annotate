@@ -103,19 +103,26 @@ server mid-demo.
    pinned dev version this repo builds against: **Developer → Extension Wizard → Select Extension**
    → `external/MONAILabel/plugins/slicer/MONAILabel`). Restart Slicer if prompted.
 2. Open the **MONAI Label** module (module dropdown, top-left).
-3. Server URL field → `http://localhost:8000` → **Fetch Info** button. The model dropdown should
-   populate with `medsam2_2d` and `medsam2_3d`.
-4. **Next Sample** (or the sample/image picker) → loads an unlabeled image from the datastore into
-   the 2D slice views.
-5. Select model **`medsam2_2d`** in the dropdown.
-6. Use Slicer's **ROI/box** tool (MONAI Label adds a "Deepgrow"-style box-prompt tool to the
-   toolbar for interactive tasks) to draw a box around the structure in one of the 2D slice views.
-7. Click **Run** / the segment button. Expect a mask to appear as a colored overlay within a couple
-   of seconds (pre-warmed) — a few seconds longer the very first time if pre-warm was skipped.
-8. Use Slicer's **Segment Editor** (Paint/Erase/Scissors) to correct the mask if needed.
-9. Click **Submit Label** — this writes the corrected mask back into the MONAI Label datastore
-   under `labels/final/`.
-10. Repeat 4–9 on 2–3 images to show the prompt → correct → submit loop.
+3. Server URL field → `http://localhost:8000` → **Fetch Info** button. The interactive models
+   `medsam2_2d` / `medsam2_3d` and the advertised labels (`muscle`, `subcutaneous_fat`,
+   `bone_surface`) load; those labels auto-create named segments per study.
+4. **Active Learning → Next Sample** → loads an unlabeled image into the 2D slice views.
+5. Open the **SmartEdit** section — this is where interactive models run. **There is no "Auto
+   Segmentation" section, and that is correct:** the plugin only shows Auto Segmentation for
+   whole-volume automatic models, and we deliberately register none (design §5 — MedSAM2 replaces
+   that role). In SmartEdit:
+   - **Model** → `medsam2_2d`.
+   - **Label** → the structure you're about to outline (e.g. `muscle`). The mask lands in that
+     segment, which becomes its row in the measurement CSV.
+   - Click the **ROI/BBOX Prompt** place button, then drag a box around the structure in a slice
+     view. Optionally add positive/negative points with the foreground/background place buttons.
+6. Click **Update** — **this is the interactive run button** (there is no button literally called
+   "Run" for interactive models). A mask appears as a colored overlay in ~1s (pre-warmed) — longer
+   the first time if pre-warm was skipped.
+7. Use Slicer's **Segment Editor** (Paint/Erase/Scissors) to correct the mask if needed.
+8. **Active Learning → Submit Label** — writes the corrected mask into the datastore under
+   `labels/final/`.
+9. Repeat 4–8 on 2–3 images to show the prompt → correct → submit loop.
 
 **Talking points while doing this (design §10):**
 - *The annotation feel* — a box prompt returns a mask in ~1 second; contrast with drawing it by

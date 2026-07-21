@@ -96,6 +96,29 @@ FINETUNED_CHECKPOINT_FILENAME = "latest.pt"
 ENV_CHECKPOINT = "LEGUS_MEDSAM2_CHECKPOINT"
 ENV_CONFIG = "LEGUS_MEDSAM2_CONFIG"
 ENV_DEVICE = "LEGUS_DEVICE"
+ENV_LABELS = "LEGUS_LABELS"
+
+# Structures the annotator can prompt, one named segment each. SAM2 is class-agnostic -- it
+# segments whatever the box/points enclose -- so these names only decide which segment the mask
+# lands in (and therefore which row it becomes in the measurement CSV, one per structure). They
+# must be *non-empty* though: the MONAI Label Slicer plugin auto-creates a segment per advertised
+# label when a study loads and refuses to run an interactive model with no label selected, so
+# `labels=None` is exactly why a study opened with no segments and nothing to pick.
+#
+# These are demo placeholders for the lower-leg use case; the real structure list is an open
+# discovery question for the demo (DEMO.md question A2). Override without touching code via
+# LEGUS_LABELS="muscle,fat,bone" (comma-separated).
+DEFAULT_LABELS = ["muscle", "subcutaneous_fat", "bone_surface"]
+
+
+def _resolve_labels(labels: Any | None) -> Any:
+    """An explicit `labels=` wins; else LEGUS_LABELS; else DEFAULT_LABELS. Never None/empty."""
+    if labels:
+        return labels
+    env = os.environ.get(ENV_LABELS)
+    if env:
+        return [name.strip() for name in env.split(",") if name.strip()]
+    return list(DEFAULT_LABELS)
 
 
 def available_devices() -> list[str]:
@@ -195,6 +218,7 @@ class MedSAM2InferTask(Sam2InferTask):
         checkpoint = _resolve_checkpoint(model_dir)
         config_path = os.environ.get(ENV_CONFIG, DEFAULT_CONFIG)
         devices = available_devices()
+        labels = _resolve_labels(labels)
 
         # Deliberately call InferTask.__init__ (the grandparent), NOT Sam2InferTask.__init__:
         # the latter downloads settings.MONAI_SAM_MODEL_PT/_CFG and calls

@@ -73,7 +73,15 @@ uv run python -m pytest tests/ -q           # fast suite; add -m slow for the re
 - `uv sync` will **prune** monailabel/monai/sam2 unless monailabel is a declared dependency sourced
   from the submodule — it is, via `[tool.uv.sources]` in `pyproject.toml`. Don't undo that.
 - The MONAI Label Slicer plugin gates its box tool on `dimension`+`DEEPGROW` type, not the model
-  name, so `medsam2_2d` gets the ROI widget with no renaming.
+  name, so `medsam2_2d` gets the ROI widget with no renaming. Interactive models appear under
+  **SmartEdit**, never Auto Segmentation (that section shows only for `segmentation`/`detection`
+  models, which we don't register). The interactive **run button is labeled "Update"**, and the
+  box tool is "ROI/BBOX Prompt".
+- The task advertises `labels` (default `muscle,subcutaneous_fat,bone_surface`, override with
+  `LEGUS_LABELS`). This is not optional polish: with `labels=None` the plugin auto-creates no
+  segments and refuses to run an interactive model with no label selected. SAM2 is class-agnostic,
+  so labels only name the output segment (→ one CSV row per structure). Real structures TBD at the
+  demo (DEMO.md Q A2).
 - Per-round `val_dice` uses a box prompt derived from the GT mask (an oracle prompt) — it measures
   segmentation-given-a-prompt, not unprompted pre-label quality. Read the numbers accordingly.
 

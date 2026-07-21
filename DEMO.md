@@ -21,10 +21,24 @@ uv run scripts/fetch_data.py --limit 8    # public CAMUS demo images
 proceed until it prints `ALL CHECKS PASSED` and exits 0. Then:
 
 1. Open **3D Slicer** → **MONAI Label** module.
-2. Server URL `http://localhost:8000` → **Fetch Info** → the model dropdown shows `medsam2_2d`.
-3. **Next Sample** → draw a box around a structure → **Run** → a mask appears in ~1s.
-4. Correct with the **Segment Editor** if needed → **Submit Label**.
-5. Show the measurement CSV: `README.md` §3 has the exact command.
+2. Server URL `http://localhost:8000` → **Fetch Info** (the ⟳ button). The named segments
+   (`muscle`, `subcutaneous_fat`, `bone_surface`) now load automatically with each study.
+3. **Active Learning → Next Sample** → an unlabeled image loads.
+4. Open the **SmartEdit** section (this is where MedSAM2 lives — there is **no** "Auto
+   Segmentation" section, and that's correct: MedSAM2 is an *interactive* model, not an
+   auto-segmenter). In SmartEdit:
+   - **Model** → `medsam2_2d`.
+   - **Label** → pick the structure you're about to outline (e.g. `muscle`).
+   - Click the **ROI/BBOX Prompt** place button, then drag a box around that structure in a
+     slice view. (Optionally add foreground/background points with their place buttons.)
+   - Click **Update** — *this is the run button* — a mask appears in ~1s.
+5. Correct it with the **Segment Editor** (Paint/Erase) if needed → **Active Learning →
+   Submit Label**.
+6. Show the measurement CSV: `README.md` §3 has the exact command.
+
+> **Why no "Run"/"Auto Segmentation":** the plugin only shows an Auto-Segmentation section for
+> whole-volume automatic models; we deliberately don't register one (design §5 — MedSAM2 replaces
+> that role). The interactive run button is **"Update"** inside **SmartEdit**.
 
 If anything breaks live, `README.md` §4 is the fallback table. The reliable fallback for a flaky
 prompt is `LEGUS_DEVICE=cpu ./scripts/start_server.sh` — the guaranteed-correct path.
