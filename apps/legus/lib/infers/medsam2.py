@@ -86,6 +86,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG = "configs/sam2.1/sam2.1_hiera_t.yaml"
 DEFAULT_CHECKPOINT_FILENAME = "MedSAM2_latest.pt"
 
+# Where `lib.trainers.medsam2.MedSAM2TrainTask` leaves the most recently completed fine-tune
+# round (design.md Sec 6 step 4: "improved pre-labels -> she corrects less -> repeat"). Defined
+# here (not in the trainer module) because this module owns checkpoint *resolution* for
+# serving; the trainer imports these two names back rather than duplicating the path convention.
+FINETUNED_DIRNAME = "finetuned"
+FINETUNED_CHECKPOINT_FILENAME = "latest.pt"
+
 ENV_CHECKPOINT = "LEGUS_MEDSAM2_CHECKPOINT"
 ENV_CONFIG = "LEGUS_MEDSAM2_CONFIG"
 ENV_DEVICE = "LEGUS_DEVICE"
@@ -126,11 +133,39 @@ def available_devices() -> list[str]:
 def _resolve_checkpoint(model_dir: str) -> str:
     """Resolve the MedSAM2 checkpoint path without ever downloading anything.
 
-    Order: `LEGUS_MEDSAM2_CHECKPOINT` env var, then `<model_dir>/MedSAM2_latest.pt`. The demo
-    must work fully offline (design.md Sec 8 Path A), so a missing file is a loud, immediate
-    error instead of a network fetch.
+    Order:
+      1. `LEGUS_MEDSAM2_CHECKPOINT` env var -- an explicit pin always wins (e.g. for pointing the
+         demo at a known-good checkpoint regardless of what training has produced since).
+      2. `<model_dir>/finetuned/latest.pt` -- the most recently completed `/train/medsam2` round
+         (`lib.trainers.medsam2._save_checkpoint` writes this). This is what closes the
+         human-in-the-loop (design.md Sec 6 step 4, "improved pre-labels -> she corrects less ->
+         repeat"): without it, nothing ever consumed a fine-tuned checkpoint and every round's
+         work was served to nobody.
+      3. `<model_dir>/MedSAM2_latest.pt` -- the static pretrained checkpoint, the day-zero
+         default before any fine-tune round has completed.
+
+    The demo must work fully offline (design.md Sec 8 Path A), so a missing file at every step is
+    a loud, immediate error instead of a network fetch.
     """
-    path = os.environ.get(ENV_CHECKPOINT) or os.path.join(model_dir, DEFAULT_CHECKPOINT_FILENAME)
+    override = os.environ.get(ENV_CHECKPOINT)
+    if override:
+        if not os.path.isfile(override):
+            raise FileNotFoundError(
+                f"{ENV_CHECKPOINT}={override!r} does not exist. This adapter never downloads a "
+                "checkpoint -- fix the path or unset the override."
+            )
+        return override
+
+    finetuned = os.path.join(model_dir, FINETUNED_DIRNAME, FINETUNED_CHECKPOINT_FILENAME)
+    if os.path.isfile(finetuned):
+        logger.info(
+            f"MedSAM2: serving {finetuned!r} -- the latest completed /train/medsam2 fine-tune "
+            f"round -- instead of the static {DEFAULT_CHECKPOINT_FILENAME} (design.md Sec 6 "
+            "step 4). Set LEGUS_MEDSAM2_CHECKPOINT to override."
+        )
+        return finetuned
+
+    path = os.path.join(model_dir, DEFAULT_CHECKPOINT_FILENAME)
     if not os.path.isfile(path):
         raise FileNotFoundError(
             f"MedSAM2 checkpoint not found at {path!r}. Set {ENV_CHECKPOINT} or place "

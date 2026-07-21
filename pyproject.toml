@@ -21,7 +21,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.3.0",
-    "httpx>=0.27.0",
     "ruff>=0.8.0",
 ]
 
@@ -49,6 +48,9 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: loads a real checkpoint / runs a real (tiny) fine-tune; default suite stays fast without it",
+]
 
 # --- Python LSP -------------------------------------------------------------------
 # Point the language server at the uv-managed venv, and keep the vendored submodules

@@ -25,9 +25,11 @@ import logging
 import os
 
 from lib.infers.medsam2 import MedSAM2InferTask
+from lib.trainers.medsam2 import MedSAM2TrainTask
 from monailabel.interfaces.app import MONAILabelApp
 from monailabel.interfaces.tasks.infer_v2 import InferTask, InferType
 from monailabel.interfaces.tasks.strategy import Strategy
+from monailabel.interfaces.tasks.train import TrainTask
 from monailabel.tasks.activelearning.random import Random
 
 logger = logging.getLogger(__name__)
@@ -57,3 +59,10 @@ class MyApp(MONAILabelApp):
         # A minimal, valid active-learning strategy (design.md Sec 12); sample-selection
         # sophistication is out of scope for M2.
         return {"random": Random()}
+
+    def init_trainers(self) -> dict[str, TrainTask]:
+        # design.md Sec 6 step 3 (fine-tune offline between rounds). Same replaceable-adapter
+        # principle as init_infers: main.py only knows the class name -- every MedSAM2-specific
+        # fact (warm-start checkpoint, FINAL-label datastore convention, device policy) lives in
+        # lib/trainers/medsam2.py. This registers /train/medsam2 over REST.
+        return {"medsam2": MedSAM2TrainTask(model_dir=self.model_dir)}
