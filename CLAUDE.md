@@ -48,6 +48,9 @@ is built to stay swappable for them.
 - `scripts/fetch_data.py` — fetches public CAMUS into the MONAI Label datastore layout as
   singleton-z uint8 NIfTI, real spacing preserved, ground truth under `labels/original/`.
 - `scripts/bootstrap.sh` / `start_server.sh` / `check_demo.sh` — setup / run / preflight.
+- `scripts/reset_demo.sh` — stop the server and clear submitted annotations (`labels/final/` +
+  `datastore_v2.json`), keeping images and the `labels/original/` ground truth. `--stop-only` just
+  stops the server.
 - `scripts/legus_probe.py` — REST round-trip helper (uses the shipped `MONAILabelClient`).
 
 ## Running / testing

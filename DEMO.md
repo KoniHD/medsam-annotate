@@ -29,6 +29,16 @@ proceed until it prints `ALL CHECKS PASSED` and exits 0. Then:
 If anything breaks live, `README.md` §4 is the fallback table. The reliable fallback for a flaky
 prompt is `LEGUS_DEVICE=cpu ./scripts/start_server.sh` — the guaranteed-correct path.
 
+**After a practice run, reset before the real thing:**
+
+```bash
+./scripts/reset_demo.sh     # stops the server + clears the masks you submitted
+```
+
+This returns every image to "unlabeled" so `Next Sample` has work again. It keeps the images and
+the ground truth; only your submitted annotations are cleared. Use `--stop-only` to just shut the
+server down without touching annotations.
+
 > ⚠️ **Do one full click-through yourself before she watches.** The server, the masks, and the CSV
 > are all machine-verified — but the Slicer GUI steps (3–5 above) are the one part no automated test
 > could reach. Rehearse them once.
