@@ -316,6 +316,7 @@ class MedSAM2InferTask(Sam2InferTask):
             return "cpu"
 
     def __call__(self, request, debug=False):
+        request = self._normalize_roi(request)
         request = self._ensure_slice_hint(request)
         device = name_to_device(request.get("device", self.default_device))
         actual = self._ensure_predictor(device)
@@ -395,6 +396,33 @@ class MedSAM2InferTask(Sam2InferTask):
 
         mask, _result_json = self(request)
         return np.asarray(mask)
+
+    @staticmethod
+    def _normalize_roi(request: dict[str, Any]) -> dict[str, Any]:
+        """Reorder the 3D Slicer plugin's box ROI into the order upstream `run2d`/`run_3d` expect.
+
+        The plugin's `getROIPointsXYZ` sends the box grouped by axis in IJK order --
+        `[xmin, xmax, ymin, ymax, zmin, zmax]`. Upstream then builds the SAM2 box as
+        `[roi[1], roi[0], roi[3], roi[2]]`, which is only a valid `[x0, y0, x1, y1]` box when `roi`
+        is in `[row0, col0, row1, col1]` order. Fed the grouped order it produces an *inverted*
+        box (x0 > x1, y0 > y1), and SAM2 returns an **empty mask** -- the reason interactive box
+        prompts drew nothing in the client while the exact same weights worked via `segment()`.
+        Verified empirically (IoU vs ground truth): grouped order -> 0.0%, reordered -> 21.6%.
+
+        Reorders x/y (robustly, via sorted pairs, so an RAS->IJK axis flip can't invert the box)
+        and keeps z where `run_3d` reads it (`roi[4]:roi[5]`). Only the plugin's >=6-element ROI is
+        transformed; a 4-element ROI (from `segment()`/tests, already in run2d's order) passes
+        through untouched. This lives in the adapter, not the pinned submodule.
+        """
+        roi = request.get("roi")
+        if not roi or len(roi) < 6:
+            return request
+        xlo, xhi = sorted((roi[0], roi[1]))
+        ylo, yhi = sorted((roi[2], roi[3]))
+        zlo, zhi = sorted((roi[4], roi[5]))
+        request = dict(request)
+        request["roi"] = [ylo, xlo, yhi, xhi, zlo, zhi]  # -> box [xlo, ylo, xhi, yhi]
+        return request
 
     def _ensure_slice_hint(self, request: dict[str, Any]) -> dict[str, Any]:
         """For a 2D task on a volume, pin a valid slice index -- defaulting to 0 when none is

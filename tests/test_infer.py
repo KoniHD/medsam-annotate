@@ -129,6 +129,33 @@ def test_devices_agree(task, frame):
     assert iou > 0.95, f"{devices[0]} vs {devices[-1]} IoU={iou:.3f}"
 
 
+def test_normalize_roi_reorders_plugin_box():
+    """The 3D Slicer plugin sends a box grouped by axis in IJK order [xmin,xmax,ymin,ymax,zmin,zmax];
+    upstream's box = [roi[1],roi[0],roi[3],roi[2]] only forms a valid [x0,y0,x1,y1] box when roi is
+    [r0,c0,r1,c1]. The reorder must turn the grouped order into a NON-inverted box."""
+    out = MedSAM2InferTask._normalize_roi({"roi": [223, 492, 88, 497, 0, 1]})["roi"]
+    box = [out[1], out[0], out[3], out[2]]  # exactly how run2d builds the SAM2 box
+    assert box[0] < box[2] and box[1] < box[3], f"reordered box is still inverted: {box}"
+    assert box == [223, 88, 492, 497]  # [xmin, ymin, xmax, ymax]
+
+
+def test_normalize_roi_leaves_four_element_roi_untouched():
+    """A 4-element ROI (segment()/tests, already in run2d order) must pass through unchanged."""
+    req = {"roi": [40, 55, 90, 115]}
+    assert MedSAM2InferTask._normalize_roi(req)["roi"] == [40, 55, 90, 115]
+
+
+@needs_checkpoint
+def test_plugin_grouped_roi_yields_nonempty_mask(task, frame):
+    """End-to-end guard for the empty-mask bug: the plugin's grouped-IJK ROI must produce the same
+    non-empty mask as the equivalent run2d-order 4-element ROI."""
+    # frame blob is rows 40..90 (y), cols 55..115 (x); plugin order = [xmin,xmax,ymin,ymax,z0,z1].
+    grouped = np.asarray(task.segment(str(frame), {"box": [55, 115, 40, 90, 0, 1], "slice": 0})).astype(bool)
+    direct = np.asarray(task.segment(str(frame), {"box": [40, 55, 90, 115], "slice": 0})).astype(bool)
+    assert grouped.sum() > 0, "plugin-grouped ROI produced an empty mask"
+    assert np.array_equal(grouped, direct), "grouped ROI should match the equivalent row-major ROI"
+
+
 @needs_checkpoint
 def test_out_of_range_slice_is_clamped(task, frame):
     """Regression: the 3D Slicer plugin sends slice = <slice-view offset> for a 2D model, which on

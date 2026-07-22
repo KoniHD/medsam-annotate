@@ -12,6 +12,9 @@ checkpoints/
 # Datasets — fetched by scripts/fetch_data.py. Never commit imaging data.
 data/
 
+# Working outputs: measurement CSVs, QA overlay PNGs, exported masks.
+out/
+
 # MONAI Label runtime state
 *.log
 .monailabel/
